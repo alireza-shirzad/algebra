@@ -12,13 +12,15 @@ mod error;
 mod flags;
 mod impls;
 
-mod serde;
+pub mod serde;
 
 pub use ark_std::io::{Read, Write};
 
 pub use error::*;
 pub use flags::*;
-pub use serde::*;
+pub use serde::{
+    CompressedChecked, CompressedUnchecked, UncompressedChecked, UncompressedUnchecked,
+};
 
 #[cfg(test)]
 mod test;
@@ -65,7 +67,7 @@ pub enum Validate {
     No,
 }
 
-pub trait Valid: Sized + Sync {
+pub trait Valid: Sync {
     fn check(&self) -> Result<(), SerializationError>;
 
     fn batch_check<'a>(
@@ -148,7 +150,7 @@ pub trait CanonicalSerialize {
 ///     b: (u64, (u64, u64)),
 /// }
 /// ```
-pub trait CanonicalDeserialize: Valid {
+pub trait CanonicalDeserialize: Valid + Sized {
     /// The general deserialize method that takes in customization flags.
     fn deserialize_with_mode<R: Read>(
         reader: R,

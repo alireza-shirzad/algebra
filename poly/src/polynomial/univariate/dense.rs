@@ -6,9 +6,10 @@ use crate::{
 use ark_ff::{FftField, Field, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{
-    fmt,
+    cfg_iter_mut, fmt,
     ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign},
     rand::Rng,
+    vec,
     vec::*,
 };
 
@@ -40,11 +41,12 @@ impl<F: Field> Polynomial<F> for DensePolynomial<F> {
     /// Evaluates `self` at the given `point` in `Self::Point`.
     fn evaluate(&self, point: &F) -> F {
         if self.is_zero() {
-            return F::zero();
+            F::zero()
         } else if point.is_zero() {
-            return self.coeffs[0];
+            self.coeffs[0]
+        } else {
+            self.internal_evaluate(point)
         }
-        self.internal_evaluate(point)
     }
 }
 
@@ -282,32 +284,35 @@ impl<'a, F: Field> Add<&'a DensePolynomial<F>> for &DensePolynomial<F> {
     type Output = DensePolynomial<F>;
 
     fn add(self, other: &'a DensePolynomial<F>) -> DensePolynomial<F> {
-        let mut result = if self.is_zero() {
-            other.clone()
-        } else if other.is_zero() {
-            self.clone()
-        } else if self.degree() >= other.degree() {
-            let mut result = self.clone();
-            result
-                .coeffs
-                .iter_mut()
-                .zip(&other.coeffs)
-                .for_each(|(a, b)| {
-                    *a += b;
-                });
-            result
+        // If the first polynomial is zero, the result is simply the second polynomial.
+        if self.is_zero() {
+            return other.clone();
+        }
+
+        // If the second polynomial is zero, the result is simply the first polynomial.
+        if other.is_zero() {
+            return self.clone();
+        }
+
+        // Determine which polynomial has the higher degree.
+        let (longer, shorter) = if self.degree() >= other.degree() {
+            (self, other)
         } else {
-            let mut result = other.clone();
-            result
-                .coeffs
-                .iter_mut()
-                .zip(&self.coeffs)
-                .for_each(|(a, b)| {
-                    *a += b;
-                });
-            result
+            (other, self)
         };
+
+        // Start with a copy of the longer polynomial as the base for the result.
+        let mut result = longer.clone();
+
+        // Iterate through the coefficients of the `shorter` polynomial.
+        // Add them to the corresponding coefficients in the `longer` polynomial.
+        cfg_iter_mut!(result)
+            .zip(&shorter.coeffs)
+            .for_each(|(a, b)| *a += b);
+
+        // Remove any trailing zeros from the resulting polynomial.
         result.truncate_leading_zeros();
+
         result
     }
 }
